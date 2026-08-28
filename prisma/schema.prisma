@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String           @id @default(cuid())
+  name          String?
+  email         String?          @unique
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  sessions      WorkoutSession[]
+}
+
+model Exercise {
+  id                 String            @id @default(cuid())
+  name               String            @unique
+  thaiName           String?
+  targetMuscle       String?
+  equipmentType      String?           // "dumbbell", "bodyweight", "chair_dip", etc.
+  isUnilateral       Boolean           @default(false)
+  weightInstruction  String?           // "ต่อข้าง", "ใช้ 1 ดัมเบล จับ 2 มือ", "น้ำหนักตัว"
+  notes              String?           // คำแนะนำโฟกัสกล้ามเนื้อ
+  createdAt          DateTime          @default(now())
+  
+  workoutExercises   WorkoutExercise[]
+  setLogs            SetLog[]
+}
+
+model Routine {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  workouts    RoutineWorkout[]
+  createdAt   DateTime         @default(now())
+}
+
+model RoutineWorkout {
+  id          String            @id @default(cuid())
+  routineId   String
+  routine     Routine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  name        String            // "Push", "Pull", "Legs & Core"
+  thaiName    String?           // "วันจันทร์ & พฤหัสบดี: Push"
+  splitCode   String            // "PUSH", "PULL", "LEGS_CORE"
+  order       Int
+  
+  exercises   WorkoutExercise[]
+  sessions    WorkoutSession[]
+  createdAt   DateTime          @default(now())
+}
+
+model WorkoutExercise {
+  id               String          @id @default(cuid())
+  routineWorkoutId String
+  exerciseId       String
+  supersetGroupId  String?         // เช่น "SS1", "SS2" (สำหรับจับกลุ่มคู่ Superset)
+  supersetName     String?         // เช่น "Superset 1: อกบน + ไหล่รวม"
+  order            Int
+  targetSets       Int             @default(3)
+  targetRepsMin    Int             @default(10)
+  targetRepsMax    Int             @default(12)
+  defaultWeight    Float?          @default(0)
+  notes            String?
+  
+  routineWorkout   RoutineWorkout  @relation(fields: [routineWorkoutId], references: [id], onDelete: Cascade)
+  exercise         Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+}
+
+model WorkoutSession {
+  id               String          @id @default(cuid())
+  userId           String
+  routineWorkoutId String
+  startTime        DateTime        @default(now())
+  endTime          DateTime?
+  status           String          @default("IN_PROGRESS") // "IN_PROGRESS", "COMPLETED"
+  notes            String?
+  
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routineWorkout   RoutineWorkout  @relation(fields: [routineWorkoutId], references: [id], onDelete: Cascade)
+  setLogs          SetLog[]
+  createdAt        DateTime        @default(now())
+}
+
+model SetLog {
+  id         String         @id @default(cuid())
+  sessionId  String
+  exerciseId String
+  setNumber  Int
+  reps       Int            @default(0)
+  weight     Float          @default(0)
+  completed  Boolean        @default(false)
+  createdAt  DateTime       @default(now())
+
+  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise   Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+}
