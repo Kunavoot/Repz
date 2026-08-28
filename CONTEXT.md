@@ -16,8 +16,12 @@ _Avoid_: Day log, workout entry
 A specific physical movement to be performed, like "Decline Push-ups".
 _Avoid_: Workout, move
 
+**Straight Set (Regular Set)**:
+The standard way of working out. You perform one Exercise for a number of sets, resting between each set, before moving on to the next Exercise.
+_Avoid_: Normal play, single exercise
+
 **Superset**:
-A grouping of two or more Exercises intended to be performed sequentially with minimal rest.
+A grouping of two or more Exercises intended to be performed sequentially with minimal rest. This is just one of many ways to structure a workout, not the only way.
 _Avoid_: Combo, paired set
 
 **Set Log**:
@@ -31,3 +35,7 @@ _Avoid_: Day-of-week schedule
 **User / User Account**:
 A registered person in the application who has their own isolated workout data. Authentication is handled via Email + Password (hashed and salted).
 _Avoid_: Member, client
+
+**PR (Personal Record)**:
+The highest weight or most repetitions a user has successfully completed for a specific Exercise. Also known as Personal Best (PB).
+_Avoid_: High score

@@ -1,15 +1,18 @@
 # Progression
 
-This document tracks the progression of features, overall status, and any blockers or notes for the Repz workout tracker application.
+## Current Sprint / In Progress
+- [ ] Workout Plan / Routine System
+  - [ ] Seed script for default routines
+  - [ ] Database schema review for routines and exercises
+  - [ ] Dashboard UI to display current routine
 
-## 1. Login and User Profile System
-- [x] Requirements gathering & Design alignment
-- [x] Database Schema design (Added password field, synced with Neon PostgreSQL)
-- [x] Auth provider setup (NextAuth.js v5 Credentials Provider with bcryptjs hash + salt)
-- [x] Sign Up UI (`/signup` with server action and auto sign-in)
-- [x] Login UI (`/login` supporting email/password and demo mode)
-- [x] Profile & Navigation UI (User avatar & sign-out in navbar)
-- [x] Build and TypeScript Verification
+## Backlog / Next Steps
+- [ ] Active Workout Screen (Recording sets, reps, weight)
+- [ ] Superset UI grouping
+- [ ] History & Progress Chart pages
 
-## Blockers / Notes
-- None. Login and profile system is fully functional and verified.
+## Completed
+- [x] Login and User Profile System (NextAuth.js v5 Credentials Provider, bcryptjs, Neon PostgreSQL)
+
+## Blockers & Notes
+- None.
