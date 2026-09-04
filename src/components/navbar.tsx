@@ -11,19 +11,23 @@ import {
   LogIn,
   User as UserIcon,
 } from "lucide-react";
-import { DumbbellPlateGuideButton } from "@/components/dumbbell-plate-guide";
 
 export function Navbar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
 
-  // Hide main nav during active workout screen
-  if (pathname?.startsWith("/workout/")) {
+  // Hide main nav during active workout screen, auth pages, or Landing page for guests
+  if (
+    pathname?.startsWith("/workout/") ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    (pathname === "/" && !session?.user)
+  ) {
     return null;
   }
 
   const navItems = [
-    { href: "/", label: "หน้าหลัก", icon: LayoutDashboard },
+    { href: "/dashboard", label: "หน้าหลัก", icon: LayoutDashboard },
     { href: "/history", label: "ประวัติ", icon: History },
     { href: "/progress", label: "พัฒนาการ", icon: TrendingUp },
   ];
@@ -32,7 +36,7 @@ export function Navbar() {
     <header className="sticky top-0 z-40 w-full border-b border-zinc-800/80 bg-zinc-950/85 backdrop-blur-md">
       <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Brand */}
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href={session?.user ? "/dashboard" : "/"} className="flex items-center gap-2 group">
           <div className="w-9 h-9 rounded-xl bg-lime-400 text-black flex items-center justify-center font-black text-lg tracking-tighter neon-glow-sm group-hover:scale-105 transition-transform">
             R
           </div>
@@ -47,32 +51,32 @@ export function Navbar() {
           </div>
         </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition ${
-                  isActive
-                    ? "bg-zinc-800 text-lime-400 border border-zinc-700/60 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? "text-lime-400" : "text-zinc-400"}`} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Desktop Navigation - Only visible when logged in */}
+        {session?.user && (
+          <nav className="hidden md:flex items-center gap-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition ${
+                    isActive
+                      ? "bg-zinc-800 text-lime-400 border border-zinc-700/60 shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? "text-lime-400" : "text-zinc-400"}`} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Actions & User Profile */}
         <div className="flex items-center gap-2">
-          <DumbbellPlateGuideButton />
-
           {status === "loading" ? (
             <div className="w-8 h-8 rounded-xl bg-zinc-900 animate-pulse border border-zinc-800" />
           ) : session?.user ? (
@@ -118,13 +122,18 @@ export function MobileBottomNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  // Hide bottom nav on active workout or auth pages
-  if (pathname?.startsWith("/workout/") || pathname === "/login" || pathname === "/signup") {
+  // Hide bottom nav on active workout, auth pages, or when unauthenticated
+  if (
+    pathname?.startsWith("/workout/") ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    !session?.user
+  ) {
     return null;
   }
 
   const navItems = [
-    { href: "/", label: "หน้าหลัก", icon: LayoutDashboard },
+    { href: "/dashboard", label: "หน้าหลัก", icon: LayoutDashboard },
     { href: "/history", label: "ประวัติ", icon: History },
     { href: "/progress", label: "พัฒนาการ", icon: TrendingUp },
   ];

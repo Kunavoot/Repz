@@ -21,3 +21,15 @@ export function formatDateThai(date: Date | string): string {
     minute: "2-digit",
   });
 }
+
+export function sanitizeCallbackUrl(url?: string | null): string {
+  if (!url) return "/dashboard";
+  if (!url.startsWith("/") || url.startsWith("//") || url.startsWith("/\\")) {
+    return "/dashboard";
+  }
+  const cleanPath = url.split("?")[0].toLowerCase();
+  if (cleanPath === "/login" || cleanPath === "/signup") {
+    return "/dashboard";
+  }
+  return url;
+}

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) {
-    redirect("/login");
+    redirect("/login?callbackUrl=/dashboard");
   }
   const data = await getDashboardData();
   return <DashboardClient data={data} />;

@@ -36,6 +36,13 @@ _Avoid_: Day-of-week schedule
 A registered person in the application who has their own isolated workout data. Authentication is handled via Email + Password (hashed and salted).
 _Avoid_: Member, client
 
+**Protected Views**:
+Pages and resources that require an authenticated user session (such as Dashboard, History, Progression, and active Workout Sessions). If accessed by an unauthenticated guest, the application redirects to `/login` preserving the callback URL, and backend Server Actions reject unauthenticated requests.
+
+**Guest / Unauthenticated User**:
+A visitor who has not logged in. Guests only have access to public marketing pages (Landing Page) and authentication pages (Login, Signup). Navigation items for Protected Views are hidden from guests.
+
+
 **PR (Personal Record)**:
 The highest weight or most repetitions a user has successfully completed for a specific Exercise. Also known as Personal Best (PB).
 _Avoid_: High score

@@ -5,26 +5,11 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 async function getCurrentUserId(): Promise<string> {
-  try {
-    const session = await auth();
-    if (session?.user?.id) {
-      return session.user.id;
-    }
-  } catch (error) {
-    console.warn("Auth session retrieval failed, using fallback:", error);
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized: Please sign in to perform this action");
   }
-
-  // Fallback to demo user
-  const demo = await prisma.user.upsert({
-    where: { email: "demo@repz.app" },
-    update: {},
-    create: {
-      email: "demo@repz.app",
-      name: "Demo Lifter",
-      image: "https://api.dicebear.com/7.x/bottts/svg?seed=RepzLifter",
-    },
-  });
-  return demo.id;
+  return session.user.id;
 }
 
 export async function startWorkoutSession(routineWorkoutId: string) {
@@ -108,6 +93,19 @@ export async function updateSetLog(
   setLogId: string,
   data: { reps?: number; weight?: number; completed?: boolean }
 ) {
+  const userId = await getCurrentUserId();
+
+  const existingLog = await prisma.setLog.findFirst({
+    where: {
+      id: setLogId,
+      session: { userId },
+    },
+  });
+
+  if (!existingLog) {
+    throw new Error("Unauthorized or set log not found");
+  }
+
   const updated = await prisma.setLog.update({
     where: { id: setLogId },
     data,
@@ -116,6 +114,16 @@ export async function updateSetLog(
 }
 
 export async function addSetLog(sessionId: string, exerciseId: string) {
+  const userId = await getCurrentUserId();
+
+  const session = await prisma.workoutSession.findFirst({
+    where: { id: sessionId, userId },
+  });
+
+  if (!session) {
+    throw new Error("Unauthorized or workout session not found");
+  }
+
   // Count current sets
   const count = await prisma.setLog.count({
     where: { sessionId, exerciseId },
@@ -142,6 +150,19 @@ export async function addSetLog(sessionId: string, exerciseId: string) {
 }
 
 export async function deleteSetLog(setLogId: string) {
+  const userId = await getCurrentUserId();
+
+  const existingLog = await prisma.setLog.findFirst({
+    where: {
+      id: setLogId,
+      session: { userId },
+    },
+  });
+
+  if (!existingLog) {
+    throw new Error("Unauthorized or set log not found");
+  }
+
   await prisma.setLog.delete({
     where: { id: setLogId },
   });
@@ -149,6 +170,16 @@ export async function deleteSetLog(setLogId: string) {
 }
 
 export async function finishWorkoutSession(sessionId: string, notes?: string) {
+  const userId = await getCurrentUserId();
+
+  const existingSession = await prisma.workoutSession.findFirst({
+    where: { id: sessionId, userId },
+  });
+
+  if (!existingSession) {
+    throw new Error("Unauthorized or workout session not found");
+  }
+
   const session = await prisma.workoutSession.update({
     where: { id: sessionId },
     data: {
@@ -180,8 +211,10 @@ export async function finishWorkoutSession(sessionId: string, notes?: string) {
 }
 
 export async function getActiveWorkoutSession(sessionId: string) {
-  const session = await prisma.workoutSession.findUnique({
-    where: { id: sessionId },
+  const userId = await getCurrentUserId();
+
+  const session = await prisma.workoutSession.findFirst({
+    where: { id: sessionId, userId },
     include: {
       routineWorkout: {
         include: {

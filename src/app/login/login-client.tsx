@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
+import { sanitizeCallbackUrl } from "@/lib/utils";
 
 function LoginForm() {
   const router = useRouter();
@@ -38,6 +39,8 @@ function LoginForm() {
 
     setIsLoading(true);
 
+    const targetUrl = sanitizeCallbackUrl(searchParams.get("callbackUrl"));
+
     try {
       const res = await signIn("credentials", {
         email: email.trim().toLowerCase(),
@@ -48,7 +51,7 @@ function LoginForm() {
       if (res?.error) {
         setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
       } else {
-        router.push("/dashboard");
+        router.push(targetUrl);
         router.refresh();
       }
     } catch (err) {
@@ -62,6 +65,9 @@ function LoginForm() {
   const handleDemoLogin = async () => {
     setIsDemoLoading(true);
     setError(null);
+
+    const targetUrl = sanitizeCallbackUrl(searchParams.get("callbackUrl"));
+
     try {
       const res = await signIn("credentials", {
         email: "demo@repz.app",
@@ -72,7 +78,7 @@ function LoginForm() {
       if (res?.error) {
         setError("ไม่สามารถเข้าสู่ระบบ Demo ได้");
       } else {
-        router.push("/dashboard");
+        router.push(targetUrl);
         router.refresh();
       }
     } catch (err) {
