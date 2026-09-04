@@ -53,4 +53,4 @@ When you identify a pattern failure or operational mistake:
 ## Tech Stack & Personalization (Your Brain)
 - **Framework/Languages:** Next.js (App Router), React, TypeScript.
 - **Type Safety:** Avoid using `any`. Prefer strict typing.
-- **Communication:** Be concise and direct. Skip long generic introductions.
+- **Communication:** Be concise and direct. Skip long generic introductions. Always write implementation plans, tasks, artifacts, and general explanations in Thai (ภาษาไทย), while preserving technical terms in English.

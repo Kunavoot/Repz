@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useTransition, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Timer, CheckCircle, Dumbbell, ArrowLeft, Trophy, Sparkles, Clock, Layers } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -8,7 +8,7 @@ import { SupersetCard } from "./superset-card";
 import { RestTimer } from "@/components/rest-timer";
 import { DumbbellPlateGuideButton } from "@/components/dumbbell-plate-guide";
 import { formatDuration } from "@/lib/utils";
-import { addSetLog, deleteSetLog, finishWorkoutSession } from "@/actions/workout";
+import { addSetLog, deleteSetLog, finishWorkoutSession, getHistoricalPRs } from "@/actions/workout";
 
 interface ActiveWorkoutClientProps {
   initialSession: {
@@ -64,6 +64,69 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
     totalVolume: number;
     completedSets: number;
   } | null>(null);
+
+  const [historicalPRs, setHistoricalPRs] = useState<Record<string, { maxWeight: number; maxReps: number }>>({});
+
+  // Fetch PRs on load
+  useEffect(() => {
+    const fetchPRs = async () => {
+      const exerciseIds = Array.from(
+        new Set(initialSession.routineWorkout.exercises.map((we) => we.exerciseId))
+      );
+      if (exerciseIds.length > 0) {
+        const prs = await getHistoricalPRs(exerciseIds);
+        setHistoricalPRs(prs);
+      }
+    };
+    fetchPRs();
+  }, [initialSession.routineWorkout.exercises]);
+
+  const handleUpdateSetLocal = useCallback((
+    setLogId: string,
+    updates: { reps?: number; weight?: number; completed?: boolean }
+  ) => {
+    setSetLogs((prev) =>
+      prev.map((s) => (s.id === setLogId ? { ...s, ...updates } : s))
+    );
+  }, []);
+
+  const prSetIds = useMemo(() => {
+    const prs = new Set<string>();
+    const exerciseIds = Array.from(new Set(setLogs.map((s) => s.exerciseId)));
+
+    for (const exId of exerciseIds) {
+      const hist = historicalPRs[exId] || { maxWeight: 0, maxReps: 0 };
+      const completedSets = setLogs.filter((s) => s.exerciseId === exId && s.completed);
+      if (completedSets.length === 0) continue;
+
+      let sessionMaxWeight = 0;
+      let sessionMaxReps = 0;
+      for (const s of completedSets) {
+        if (s.weight > sessionMaxWeight) sessionMaxWeight = s.weight;
+        if (s.weight === 0 && s.reps > sessionMaxReps) sessionMaxReps = s.reps;
+      }
+
+      // Max Weight PR
+      if (sessionMaxWeight > 0 && sessionMaxWeight > hist.maxWeight) {
+        for (const s of completedSets) {
+          if (s.weight === sessionMaxWeight) {
+            prs.add(s.id);
+          }
+        }
+      }
+
+      // Max Reps PR for Bodyweight
+      if (sessionMaxReps > 0 && sessionMaxReps > (hist.maxReps || 0)) {
+        for (const s of completedSets) {
+          if (s.weight === 0 && s.reps === sessionMaxReps) {
+            prs.add(s.id);
+          }
+        }
+      }
+    }
+
+    return prs;
+  }, [setLogs, historicalPRs]);
 
   // Live timer since session start
   useEffect(() => {
@@ -131,13 +194,34 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
     // Fire celebratory confetti!
     try {
       confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ["#39ff14", "#22c55e", "#ffffff", "#eab308"],
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.5 },
+        colors: ["#39ff14", "#22c55e", "#ffffff", "#eab308", "#a855f7"],
       });
     } catch {
       // Ignored if confetti fails
+    }
+  };
+
+  const handleShare = async () => {
+    if (!summaryData) return;
+    const durationStr = formatDuration(Math.floor(summaryData.durationMs / 1000));
+    const text = `🔥 ฉันเพิ่งออกกำลังกายเสร็จ!\nเวลา: ${durationStr}\nปริมาณรวม: ${summaryData.totalVolume.toFixed(0)} kg\nทำลายสถิติใหม่ (PR): ${prSetIds.size} เซ็ต\n\n💪 บันทึกด้วย Repz`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Repz Workout Summary",
+          text: text,
+        });
+      } catch (error) {
+        console.log("Error sharing", error);
+      }
+    } else {
+      // Fallback for desktop
+      navigator.clipboard.writeText(text);
+      alert("คัดลอกข้อความสรุปไปยังคลิปบอร์ดแล้ว!");
     }
   };
 
@@ -212,6 +296,8 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
             onSetCompleted={handleSetCompleted}
             onAddSet={handleAddSet}
             onDeleteSet={handleDeleteSet}
+            prSetIds={prSetIds}
+            onSetChange={handleUpdateSetLocal}
           />
         ))}
 
@@ -252,28 +338,42 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-zinc-950/70 border border-zinc-800">
-              <div className="p-2">
+            <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-zinc-950/70 border border-zinc-800">
+              <div className="p-2 border-b border-r border-zinc-800">
                 <div className="text-[10px] text-zinc-400 uppercase font-medium">เวลาที่ใช้</div>
                 <div className="text-lg font-black font-mono text-lime-400 mt-0.5">
                   {formatDuration(Math.floor(summaryData.durationMs / 1000))}
                 </div>
               </div>
-              <div className="p-2 border-x border-zinc-800">
+              <div className="p-2 border-b border-zinc-800">
                 <div className="text-[10px] text-zinc-400 uppercase font-medium">เซ็ตที่สำเร็จ</div>
                 <div className="text-lg font-black font-mono text-lime-400 mt-0.5">
                   {summaryData.completedSets}
                 </div>
               </div>
-              <div className="p-2">
+              <div className="p-2 border-r border-zinc-800">
                 <div className="text-[10px] text-zinc-400 uppercase font-medium">Total Volume</div>
                 <div className="text-lg font-black font-mono text-lime-400 mt-0.5">
                   {summaryData.totalVolume.toFixed(0)} <span className="text-xs font-normal">kg</span>
                 </div>
               </div>
+              <div className="p-2">
+                <div className="text-[10px] text-zinc-400 uppercase font-medium flex items-center justify-center gap-1">
+                  สถิติใหม่ (PR) <Trophy className="w-3 h-3 text-yellow-500" />
+                </div>
+                <div className="text-lg font-black font-mono text-yellow-500 mt-0.5">
+                  {prSetIds.size} <span className="text-xs font-normal">เซ็ต</span>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2 pt-2">
+              <button
+                onClick={handleShare}
+                className="w-full py-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-zinc-200 transition flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" /> แชร์ผลลัพธ์ (Share)
+              </button>
               <button
                 onClick={() => router.push("/history")}
                 className="w-full py-3 rounded-xl bg-lime-400 text-black font-bold text-sm hover:bg-lime-300 transition"

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { Check, Trash2, Plus, Minus, Info } from "lucide-react";
+import { Check, Trash2, Plus, Minus, Info, Medal } from "lucide-react";
+import confetti from "canvas-confetti";
 import { updateSetLog, deleteSetLog } from "@/actions/workout";
 import { getDumbbellSetup } from "@/lib/dumbbell-data";
 
@@ -21,6 +22,11 @@ interface SetRowProps {
   targetRepsMax: number;
   onSetCompleted: () => void;
   onDeleteSet: (setLogId: string) => void;
+  isPR?: boolean;
+  onSetChange?: (
+    setLogId: string,
+    updates: { reps?: number; weight?: number; completed?: boolean }
+  ) => void;
 }
 
 export function SetRow({
@@ -30,19 +36,46 @@ export function SetRow({
   targetRepsMax,
   onSetCompleted,
   onDeleteSet,
+  isPR = false,
+  onSetChange,
 }: SetRowProps) {
   const [isPending, startTransition] = useTransition();
   const [reps, setReps] = useState(setLog.reps);
   const [weight, setWeight] = useState(setLog.weight);
   const [completed, setCompleted] = useState(setLog.completed);
   const [showPlateGuide, setShowPlateGuide] = useState(false);
+  const [wasPR, setWasPR] = useState(false);
 
   const isBodyweight = exercise.equipmentType === "bodyweight" && weight === 0;
   const plateSetup = getDumbbellSetup(weight);
 
+  // Trigger celebratory confetti when completing a PR set
+  React.useEffect(() => {
+    if (completed && isPR && !wasPR) {
+      setWasPR(true);
+      try {
+        confetti({
+          particleCount: 40,
+          spread: 50,
+          origin: { y: 0.8 },
+          colors: ["#eab308", "#ffffff"],
+          disableForReducedMotion: true,
+        });
+      } catch {
+        // ignore
+      }
+    } else if (!completed && wasPR) {
+      setWasPR(false);
+    }
+  }, [completed, isPR, wasPR]);
+
   const handleToggleComplete = () => {
     const nextCompleted = !completed;
     setCompleted(nextCompleted);
+
+    if (onSetChange) {
+      onSetChange(setLog.id, { reps, weight, completed: nextCompleted });
+    }
 
     startTransition(async () => {
       await updateSetLog(setLog.id, {
@@ -60,6 +93,9 @@ export function SetRow({
   const handleWeightChange = (newWeight: number) => {
     const clamped = Math.max(0, Math.min(25, Math.round(newWeight * 10) / 10));
     setWeight(clamped);
+    if (onSetChange) {
+      onSetChange(setLog.id, { weight: clamped });
+    }
     startTransition(async () => {
       await updateSetLog(setLog.id, { weight: clamped });
     });
@@ -68,6 +104,9 @@ export function SetRow({
   const handleRepsChange = (newReps: number) => {
     const clamped = Math.max(1, Math.min(100, newReps));
     setReps(clamped);
+    if (onSetChange) {
+      onSetChange(setLog.id, { reps: clamped });
+    }
     startTransition(async () => {
       await updateSetLog(setLog.id, { reps: clamped });
     });
@@ -93,7 +132,14 @@ export function SetRow({
           >
             {setLog.setNumber}
           </div>
-          <span className="hidden sm:inline text-xs text-zinc-500 font-medium">เซ็ต</span>
+          <div className="flex flex-col">
+            <span className="hidden sm:inline text-xs text-zinc-500 font-medium">เซ็ต</span>
+            {isPR && completed && (
+              <span className="absolute -top-2 left-2 flex items-center gap-0.5 bg-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_#eab308] animate-in zoom-in">
+                PR <Medal className="w-2.5 h-2.5" />
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Weight Control */}

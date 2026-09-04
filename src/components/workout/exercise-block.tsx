@@ -33,6 +33,11 @@ interface ExerciseBlockProps {
   onSetCompleted: () => void;
   onAddSet: (exerciseId: string) => void;
   onDeleteSet: (setLogId: string) => void;
+  prSetIds: Set<string>;
+  onSetChange: (
+    setLogId: string,
+    updates: { reps?: number; weight?: number; completed?: boolean }
+  ) => void;
 }
 
 export function ExerciseBlock({
@@ -41,6 +46,8 @@ export function ExerciseBlock({
   onSetCompleted,
   onAddSet,
   onDeleteSet,
+  prSetIds,
+  onSetChange,
 }: ExerciseBlockProps) {
   const [showTips, setShowTips] = useState(false);
   const { exercise } = workoutExercise;
@@ -123,6 +130,8 @@ export function ExerciseBlock({
             targetRepsMax={workoutExercise.targetRepsMax}
             onSetCompleted={onSetCompleted}
             onDeleteSet={onDeleteSet}
+            isPR={prSetIds.has(setLog.id)}
+            onSetChange={onSetChange}
           />
         ))}
       </div>

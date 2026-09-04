@@ -409,3 +409,34 @@ export async function getProgressData(selectedExerciseId?: string) {
     },
   };
 }
+
+export async function getHistoricalPRs(exerciseIds: string[]) {
+  const userId = await getCurrentUserId();
+
+  const prs = await prisma.setLog.groupBy({
+    by: ['exerciseId'],
+    where: {
+      exerciseId: { in: exerciseIds },
+      completed: true,
+      session: {
+        userId,
+        status: "COMPLETED",
+      },
+    },
+    _max: {
+      weight: true,
+      reps: true,
+    },
+  });
+
+  const result: Record<string, { maxWeight: number; maxReps: number }> = {};
+  for (const pr of prs) {
+    result[pr.exerciseId] = {
+      maxWeight: pr._max.weight ?? 0,
+      maxReps: pr._max.reps ?? 0,
+    };
+  }
+
+  return result;
+}
+

@@ -44,5 +44,7 @@ A visitor who has not logged in. Guests only have access to public marketing pag
 
 
 **PR (Personal Record)**:
-The highest weight or most repetitions a user has successfully completed for a specific Exercise. Also known as Personal Best (PB).
-_Avoid_: High score
+The highest achievement a user has completed for a specific Exercise. To support both weighted and bodyweight exercises, we track two distinct types of PRs:
+1. **Max Weight PR**: The absolute highest weight lifted in a single set (relevant for equipment-based exercises).
+2. **Max Reps PR**: The absolute highest number of repetitions performed in a single set (the primary metric for bodyweight exercises like push-ups, or for endurance sets).
+_Avoid_: High score, 1RM (as a blanket term)
