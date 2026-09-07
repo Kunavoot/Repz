@@ -48,3 +48,7 @@ The highest achievement a user has completed for a specific Exercise. To support
 1. **Max Weight PR**: The absolute highest weight lifted in a single set (relevant for equipment-based exercises).
 2. **Max Reps PR**: The absolute highest number of repetitions performed in a single set (the primary metric for bodyweight exercises like push-ups, or for endurance sets).
 _Avoid_: High score, 1RM (as a blanket term)
+
+**Exercise Swap**:
+The act of substituting an Exercise in an active Workout Session with an alternative Exercise (e.g., due to equipment unavailability or personal discomfort) before logging any completed sets for that block. The change applies strictly to that specific Session and does not mutate the base Workout Plan or Routine.
+_Avoid_: Replace workout, alternate routine

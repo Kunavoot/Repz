@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { Timer, CheckCircle, Dumbbell, ArrowLeft, Trophy, Sparkles, Clock, Layers } from "lucide-react";
 import confetti from "canvas-confetti";
 import { SupersetCard } from "./superset-card";
+import { SwapExerciseModal } from "./swap-exercise-modal";
 import { RestTimer } from "@/components/rest-timer";
 import { DumbbellPlateGuideButton } from "@/components/dumbbell-plate-guide";
 import { formatDuration } from "@/lib/utils";
-import { addSetLog, deleteSetLog, finishWorkoutSession, getHistoricalPRs } from "@/actions/workout";
+import { addSetLog, deleteSetLog, finishWorkoutSession, getHistoricalPRs, swapExerciseSession } from "@/actions/workout";
 
 interface ActiveWorkoutClientProps {
   initialSession: {
@@ -59,11 +60,21 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [swapModalTarget, setSwapModalTarget] = useState<{
+    exerciseId: string;
+    exerciseName: string;
+    targetMuscle: string | null;
+  } | null>(null);
   const [summaryData, setSummaryData] = useState<{
     durationMs: number;
     totalVolume: number;
     completedSets: number;
   } | null>(null);
+
+  // Sync setLogs if initialSession updates (e.g. after swap & router.refresh)
+  useEffect(() => {
+    setSetLogs(initialSession.setLogs);
+  }, [initialSession.setLogs]);
 
   const [historicalPRs, setHistoricalPRs] = useState<Record<string, { maxWeight: number; maxReps: number }>>({});
 
@@ -170,6 +181,23 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
 
   const handleSetCompleted = () => {
     setShowRestTimer(true);
+  };
+
+  const handleOpenSwapModal = useCallback(
+    (exerciseId: string, exerciseName: string, targetMuscle: string | null) => {
+      setSwapModalTarget({ exerciseId, exerciseName, targetMuscle });
+    },
+    []
+  );
+
+  const handleConfirmSwap = async (newExerciseId: string) => {
+    if (!swapModalTarget) return;
+    await swapExerciseSession(
+      initialSession.id,
+      swapModalTarget.exerciseId,
+      newExerciseId
+    );
+    router.refresh();
   };
 
   const handleAddSet = (exerciseId: string) => {
@@ -298,6 +326,7 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
             onDeleteSet={handleDeleteSet}
             prSetIds={prSetIds}
             onSetChange={handleUpdateSetLocal}
+            onSwapExercise={handleOpenSwapModal}
           />
         ))}
 
@@ -389,6 +418,18 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
             </div>
           </div>
         </div>
+      )}
+
+      {/* Swap Exercise Modal */}
+      {swapModalTarget && (
+        <SwapExerciseModal
+          isOpen={Boolean(swapModalTarget)}
+          onClose={() => setSwapModalTarget(null)}
+          currentExerciseId={swapModalTarget.exerciseId}
+          currentExerciseName={swapModalTarget.exerciseName}
+          currentTargetMuscle={swapModalTarget.targetMuscle}
+          onConfirmSwap={handleConfirmSwap}
+        />
       )}
     </div>
   );

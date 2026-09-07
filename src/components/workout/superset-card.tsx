@@ -40,6 +40,7 @@ interface SupersetCardProps {
     setLogId: string,
     updates: { reps?: number; weight?: number; completed?: boolean }
   ) => void;
+  onSwapExercise?: (exerciseId: string, exerciseName: string, targetMuscle: string | null) => void;
 }
 
 export function SupersetCard({
@@ -51,6 +52,7 @@ export function SupersetCard({
   onDeleteSet,
   prSetIds,
   onSetChange,
+  onSwapExercise,
 }: SupersetCardProps) {
   const isSuperset = workoutExercises.length > 1;
 
@@ -100,6 +102,7 @@ export function SupersetCard({
                 onDeleteSet={onDeleteSet}
                 prSetIds={prSetIds}
                 onSetChange={onSetChange}
+                onSwapExercise={onSwapExercise}
               />
 
               {/* Superset connector arrow */}

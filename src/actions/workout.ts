@@ -226,11 +226,36 @@ export async function getActiveWorkoutSession(sessionId: string) {
           },
         },
       },
+      swaps: {
+        include: {
+          newExercise: true,
+        },
+      },
       setLogs: {
         orderBy: [{ exerciseId: "asc" }, { setNumber: "asc" }],
       },
     },
   });
+
+  if (!session) return null;
+
+  // If there are swaps for this session, replace exercise and exerciseId in-memory
+  if (session.swaps && session.swaps.length > 0) {
+    const swapMap = new Map(
+      session.swaps.map((s) => [s.originalExerciseId, s.newExercise])
+    );
+    session.routineWorkout.exercises = session.routineWorkout.exercises.map((we) => {
+      if (swapMap.has(we.exerciseId)) {
+        const newEx = swapMap.get(we.exerciseId)!;
+        return {
+          ...we,
+          exerciseId: newEx.id,
+          exercise: newEx,
+        };
+      }
+      return we;
+    });
+  }
 
   return session;
 }
@@ -438,5 +463,139 @@ export async function getHistoricalPRs(exerciseIds: string[]) {
   }
 
   return result;
+}
+
+export async function swapExerciseSession(
+  sessionId: string,
+  currentExerciseId: string,
+  newExerciseId: string
+) {
+  const userId = await getCurrentUserId();
+
+  const session = await prisma.workoutSession.findFirst({
+    where: { id: sessionId, userId },
+    include: {
+      swaps: true,
+    },
+  });
+
+  if (!session) {
+    throw new Error("Unauthorized or workout session not found");
+  }
+
+  // Safety check: ensure no completed sets for currentExerciseId
+  const completedCount = await prisma.setLog.count({
+    where: {
+      sessionId,
+      exerciseId: currentExerciseId,
+      completed: true,
+    },
+  });
+
+  if (completedCount > 0) {
+    throw new Error("ไม่สามารถเปลี่ยนท่าที่มีเซ็ตที่เล่นเสร็จแล้วได้");
+  }
+
+  const newExercise = await prisma.exercise.findUnique({
+    where: { id: newExerciseId },
+  });
+  if (!newExercise) {
+    throw new Error("ไม่พบข้อมูลท่าออกกำลังกายใหม่");
+  }
+
+  // Check if currentExerciseId is already a result of a previous swap in this session
+  const existingSwap = session.swaps.find((s) => s.newExerciseId === currentExerciseId);
+
+  if (existingSwap) {
+    if (existingSwap.originalExerciseId === newExerciseId) {
+      // Swapped back to original: remove swap record
+      await prisma.sessionExerciseSwap.delete({
+        where: { id: existingSwap.id },
+      });
+    } else {
+      // Update swap target
+      await prisma.sessionExerciseSwap.update({
+        where: { id: existingSwap.id },
+        data: { newExerciseId },
+      });
+    }
+  } else {
+    // Create or upsert swap record for this original exercise
+    await prisma.sessionExerciseSwap.upsert({
+      where: {
+        sessionId_originalExerciseId: {
+          sessionId,
+          originalExerciseId: currentExerciseId,
+        },
+      },
+      create: {
+        sessionId,
+        originalExerciseId: currentExerciseId,
+        newExerciseId,
+      },
+      update: {
+        newExerciseId,
+      },
+    });
+  }
+
+  // Fetch previous logs for the new exercise to get historical weight/reps
+  const previousLogs = await prisma.setLog.findMany({
+    where: {
+      exerciseId: newExerciseId,
+      completed: true,
+      session: {
+        userId,
+        status: "COMPLETED",
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+
+  // Get current uncompleted sets for this exercise
+  const currentSets = await prisma.setLog.findMany({
+    where: {
+      sessionId,
+      exerciseId: currentExerciseId,
+    },
+    orderBy: { setNumber: "asc" },
+  });
+
+  for (const s of currentSets) {
+    let defaultReps = s.reps;
+    let defaultWeight = s.weight;
+
+    if (previousLogs.length > 0) {
+      const matchingPrev = previousLogs.find((l) => l.setNumber === s.setNumber) || previousLogs[0];
+      if (matchingPrev) {
+        defaultReps = matchingPrev.reps > 0 ? matchingPrev.reps : 10;
+        defaultWeight = matchingPrev.weight >= 0 ? matchingPrev.weight : 0;
+      }
+    } else {
+      defaultReps = 10;
+      defaultWeight = 0;
+    }
+
+    await prisma.setLog.update({
+      where: { id: s.id },
+      data: {
+        exerciseId: newExerciseId,
+        reps: defaultReps,
+        weight: defaultWeight,
+      },
+    });
+  }
+
+  revalidatePath(`/workout/${sessionId}`);
+  return { success: true };
+}
+
+export async function getAllExercises() {
+  await getCurrentUserId();
+  const exercises = await prisma.exercise.findMany({
+    orderBy: [{ targetMuscle: "asc" }, { name: "asc" }],
+  });
+  return exercises;
 }
 
