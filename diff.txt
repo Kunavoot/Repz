@@ -1,0 +1,857 @@
+diff --git a/CONTEXT.md b/CONTEXT.md
+index 24db0cc..f947108 100644
+--- a/CONTEXT.md
++++ b/CONTEXT.md
+@@ -48,3 +48,7 @@ The highest achievement a user has completed for a specific Exercise. To support
+ 1. **Max Weight PR**: The absolute highest weight lifted in a single set (relevant for equipment-based exercises).
+ 2. **Max Reps PR**: The absolute highest number of repetitions performed in a single set (the primary metric for bodyweight exercises like push-ups, or for endurance sets).
+ _Avoid_: High score, 1RM (as a blanket term)
++
++**Exercise Swap**:
++The act of substituting an Exercise in an active Workout Session with an alternative Exercise (e.g., due to equipment unavailability or personal discomfort) before logging any completed sets for that block. The change applies strictly to that specific Session and does not mutate the base Workout Plan or Routine.
++_Avoid_: Replace workout, alternate routine
+diff --git a/PROGRESSION.md b/PROGRESSION.md
+index 10ac74a..80d8e86 100644
+--- a/PROGRESSION.md
++++ b/PROGRESSION.md
+@@ -14,10 +14,10 @@
+   - [x] Post-workout modal or summary view upon pressing "Finish Workout"
+   - [x] Metrics breakdown: Total Volume (kg), Completed Sets, Total Duration, PRs broken today
+   - [x] Option to share or view summary recap
+-- [ ] Rest Timer Audio & Vibration Notifications
+-  - [ ] Synthesized audio chime via Web Audio API (cross-browser without external audio asset dependencies)
+-  - [ ] Web Vibration API (`navigator.vibrate`) trigger on timer completion for mobile devices
+-  - [ ] Toggle switch in settings / timer widget to enable/disable sound and vibration
++- [x] Rest Timer Audio & Vibration Notifications
++  - [x] Synthesized audio chime via Web Audio API (cross-browser without external audio asset dependencies)
++  - [x] Web Vibration API (`navigator.vibrate`) trigger on timer completion for mobile devices
++  - [x] Toggle switch in settings / timer widget to enable/disable sound and vibration
+ - [ ] PWA (Progressive Web App) Support
+   - [ ] Web App Manifest (`manifest.json`) with app icons and theme colors (`#39FF14` neon green & dark theme)
+   - [ ] Service Worker setup for offline fallback and cache optimization
+@@ -26,10 +26,10 @@
+   - [ ] Exercise management UI (add custom exercises, select muscle groups, equipment type)
+   - [ ] Routine builder UI (create custom routines, reorder workouts, customize target sets/reps)
+   - [ ] Superset pairing editor in routine setup
+-- [ ] Exercise Swap during Active Workout
+-  - [ ] "Swap Exercise" action button in `ExerciseBlock`
+-  - [ ] Modal to pick alternate exercise targeting the same muscle group
+-  - [ ] Preserve or cleanly replace set logs for that session without corrupting the base routine
++- [x] Exercise Swap during Active Workout
++  - [x] "Swap Exercise" action button in `ExerciseBlock`
++  - [x] Modal to pick alternate exercise targeting the same muscle group
++  - [x] Preserve or cleanly replace set logs for that session without corrupting the base routine
+ 
+ ## Completed
+ - [x] Login and User Profile System (NextAuth.js v5 Credentials Provider, bcryptjs, Neon PostgreSQL)
+@@ -40,6 +40,7 @@
+ - [x] History & Progress Chart Pages (Session logs list, Recharts progress by exercise)
+ - [x] PR (Personal Record) Tracking & In-Session Notification
+ - [x] Workout Finish Summary Screen & Celebration
++- [x] Exercise Swap during Active Workout (Session-scoped swap modal with muscle group filter)
+ 
+ ## Blockers & Notes
+ - None.
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index c8c64ba..6f93c36 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -31,6 +31,8 @@ model Exercise {
+   
+   workoutExercises   WorkoutExercise[]
+   setLogs            SetLog[]
++  originalSwaps      SessionExerciseSwap[] @relation("OriginalSwap")
++  newSwaps           SessionExerciseSwap[] @relation("NewSwap")
+ }
+ 
+ model Routine {
+@@ -84,6 +86,7 @@ model WorkoutSession {
+   user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+   routineWorkout   RoutineWorkout  @relation(fields: [routineWorkoutId], references: [id], onDelete: Cascade)
+   setLogs          SetLog[]
++  swaps            SessionExerciseSwap[]
+   createdAt        DateTime        @default(now())
+ }
+ 
+@@ -100,3 +103,17 @@ model SetLog {
+   session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+   exercise   Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+ }
++
++model SessionExerciseSwap {
++  id                 String         @id @default(cuid())
++  sessionId          String
++  originalExerciseId String
++  newExerciseId      String
++  createdAt          DateTime       @default(now())
++
++  session            WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
++  originalExercise   Exercise       @relation("OriginalSwap", fields: [originalExerciseId], references: [id], onDelete: Cascade)
++  newExercise        Exercise       @relation("NewSwap", fields: [newExerciseId], references: [id], onDelete: Cascade)
++
++  @@unique([sessionId, originalExerciseId])
++}
+diff --git a/src/actions/workout.ts b/src/actions/workout.ts
+index 2df2839..b6591bc 100644
+--- a/src/actions/workout.ts
++++ b/src/actions/workout.ts
+@@ -226,12 +226,37 @@ export async function getActiveWorkoutSession(sessionId: string) {
+           },
+         },
+       },
++      swaps: {
++        include: {
++          newExercise: true,
++        },
++      },
+       setLogs: {
+         orderBy: [{ exerciseId: "asc" }, { setNumber: "asc" }],
+       },
+     },
+   });
+ 
++  if (!session) return null;
++
++  // If there are swaps for this session, replace exercise and exerciseId in-memory
++  if (session.swaps && session.swaps.length > 0) {
++    const swapMap = new Map(
++      session.swaps.map((s) => [s.originalExerciseId, s.newExercise])
++    );
++    session.routineWorkout.exercises = session.routineWorkout.exercises.map((we) => {
++      if (swapMap.has(we.exerciseId)) {
++        const newEx = swapMap.get(we.exerciseId)!;
++        return {
++          ...we,
++          exerciseId: newEx.id,
++          exercise: newEx,
++        };
++      }
++      return we;
++    });
++  }
++
+   return session;
+ }
+ 
+@@ -440,3 +465,137 @@ export async function getHistoricalPRs(exerciseIds: string[]) {
+   return result;
+ }
+ 
++export async function swapExerciseSession(
++  sessionId: string,
++  currentExerciseId: string,
++  newExerciseId: string
++) {
++  const userId = await getCurrentUserId();
++
++  const session = await prisma.workoutSession.findFirst({
++    where: { id: sessionId, userId },
++    include: {
++      swaps: true,
++    },
++  });
++
++  if (!session) {
++    throw new Error("Unauthorized or workout session not found");
++  }
++
++  // Safety check: ensure no completed sets for currentExerciseId
++  const completedCount = await prisma.setLog.count({
++    where: {
++      sessionId,
++      exerciseId: currentExerciseId,
++      completed: true,
++    },
++  });
++
++  if (completedCount > 0) {
++    throw new Error("ไม่สามารถเปลี่ยนท่าที่มีเซ็ตที่เล่นเสร็จแล้วได้");
++  }
++
++  const newExercise = await prisma.exercise.findUnique({
++    where: { id: newExerciseId },
++  });
++  if (!newExercise) {
++    throw new Error("ไม่พบข้อมูลท่าออกกำลังกายใหม่");
++  }
++
++  // Check if currentExerciseId is already a result of a previous swap in this session
++  const existingSwap = session.swaps.find((s) => s.newExerciseId === currentExerciseId);
++
++  if (existingSwap) {
++    if (existingSwap.originalExerciseId === newExerciseId) {
++      // Swapped back to original: remove swap record
++      await prisma.sessionExerciseSwap.delete({
++        where: { id: existingSwap.id },
++      });
++    } else {
++      // Update swap target
++      await prisma.sessionExerciseSwap.update({
++        where: { id: existingSwap.id },
++        data: { newExerciseId },
++      });
++    }
++  } else {
++    // Create or upsert swap record for this original exercise
++    await prisma.sessionExerciseSwap.upsert({
++      where: {
++        sessionId_originalExerciseId: {
++          sessionId,
++          originalExerciseId: currentExerciseId,
++        },
++      },
++      create: {
++        sessionId,
++        originalExerciseId: currentExerciseId,
++        newExerciseId,
++      },
++      update: {
++        newExerciseId,
++      },
++    });
++  }
++
++  // Fetch previous logs for the new exercise to get historical weight/reps
++  const previousLogs = await prisma.setLog.findMany({
++    where: {
++      exerciseId: newExerciseId,
++      completed: true,
++      session: {
++        userId,
++        status: "COMPLETED",
++      },
++    },
++    orderBy: { createdAt: "desc" },
++    take: 10,
++  });
++
++  // Get current uncompleted sets for this exercise
++  const currentSets = await prisma.setLog.findMany({
++    where: {
++      sessionId,
++      exerciseId: currentExerciseId,
++    },
++    orderBy: { setNumber: "asc" },
++  });
++
++  for (const s of currentSets) {
++    let defaultReps = s.reps;
++    let defaultWeight = s.weight;
++
++    if (previousLogs.length > 0) {
++      const matchingPrev = previousLogs.find((l) => l.setNumber === s.setNumber) || previousLogs[0];
++      if (matchingPrev) {
++        defaultReps = matchingPrev.reps > 0 ? matchingPrev.reps : 10;
++        defaultWeight = matchingPrev.weight >= 0 ? matchingPrev.weight : 0;
++      }
++    } else {
++      defaultReps = 10;
++      defaultWeight = 0;
++    }
++
++    await prisma.setLog.update({
++      where: { id: s.id },
++      data: {
++        exerciseId: newExerciseId,
++        reps: defaultReps,
++        weight: defaultWeight,
++      },
++    });
++  }
++
++  revalidatePath(`/workout/${sessionId}`);
++  return { success: true };
++}
++
++export async function getAllExercises() {
++  await getCurrentUserId();
++  const exercises = await prisma.exercise.findMany({
++    orderBy: [{ targetMuscle: "asc" }, { name: "asc" }],
++  });
++  return exercises;
++}
++
+diff --git a/src/components/rest-timer.tsx b/src/components/rest-timer.tsx
+index 05fcd9e..fcaa0ef 100644
+--- a/src/components/rest-timer.tsx
++++ b/src/components/rest-timer.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ 
+ import React, { useState, useEffect, useRef, useCallback } from "react";
+-import { Play, Pause, RotateCcw, X, BellRing, Plus } from "lucide-react";
++import { Play, Pause, RotateCcw, X, BellRing, Plus, Volume2, VolumeX, Vibrate, VibrateOff } from "lucide-react";
+ import { formatDuration } from "@/lib/utils";
+ 
+ // Web Audio API beep
+@@ -44,6 +44,41 @@ export function RestTimer({
+   const [timeLeft, setTimeLeft] = useState(initialSeconds);
+   const [totalTime, setTotalTime] = useState(initialSeconds);
+   const [isRunning, setIsRunning] = useState(true);
++  
++  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
++  const [isVibrationEnabled, setIsVibrationEnabled] = useState(true);
++  const soundEnabledRef = useRef(true);
++  const vibeEnabledRef = useRef(true);
++
++  // Load settings from localStorage on mount
++  useEffect(() => {
++    const savedSound = localStorage.getItem("repz_sound_enabled");
++    if (savedSound !== null) {
++      setIsSoundEnabled(savedSound === "true");
++      soundEnabledRef.current = savedSound === "true";
++    }
++    
++    const savedVibe = localStorage.getItem("repz_vibration_enabled");
++    if (savedVibe !== null) {
++      setIsVibrationEnabled(savedVibe === "true");
++      vibeEnabledRef.current = savedVibe === "true";
++    }
++  }, []);
++
++  const toggleSound = () => {
++    const newValue = !isSoundEnabled;
++    setIsSoundEnabled(newValue);
++    soundEnabledRef.current = newValue;
++    localStorage.setItem("repz_sound_enabled", String(newValue));
++  };
++
++  const toggleVibration = () => {
++    const newValue = !isVibrationEnabled;
++    setIsVibrationEnabled(newValue);
++    vibeEnabledRef.current = newValue;
++    localStorage.setItem("repz_vibration_enabled", String(newValue));
++  };
++
+   const timerRef = useRef<NodeJS.Timeout | null>(null);
+ 
+   const resetTimer = useCallback((seconds: number) => {
+@@ -68,8 +103,8 @@ export function RestTimer({
+       setTimeLeft((prev) => {
+         if (prev <= 1) {
+           if (timerRef.current) clearInterval(timerRef.current);
+-          playChime();
+-          if (navigator.vibrate) {
++          if (soundEnabledRef.current) playChime();
++          if (vibeEnabledRef.current && navigator.vibrate) {
+             navigator.vibrate([200, 100, 200]);
+           }
+           return 0;
+@@ -102,12 +137,28 @@ export function RestTimer({
+               {isFinished ? "🔥 พร้อมเริ่มเซ็ตถัดไปแล้ว!" : title}
+             </span>
+           </div>
+-          <button
+-            onClick={onClose}
+-            className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+-          >
+-            <X className="w-4 h-4" />
+-          </button>
++          <div className="flex items-center gap-1">
++            <button
++              onClick={toggleSound}
++              className={`p-1.5 rounded-lg transition ${isSoundEnabled ? "text-lime-400 hover:bg-zinc-800" : "text-zinc-500 hover:text-zinc-400 hover:bg-zinc-800"}`}
++              title={isSoundEnabled ? "ปิดเสียง" : "เปิดเสียง"}
++            >
++              {isSoundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
++            </button>
++            <button
++              onClick={toggleVibration}
++              className={`p-1.5 rounded-lg transition ${isVibrationEnabled ? "text-lime-400 hover:bg-zinc-800" : "text-zinc-500 hover:text-zinc-400 hover:bg-zinc-800"}`}
++              title={isVibrationEnabled ? "ปิดสั่น" : "เปิดสั่น"}
++            >
++              {isVibrationEnabled ? <Vibrate className="w-4 h-4" /> : <VibrateOff className="w-4 h-4" />}
++            </button>
++            <button
++              onClick={onClose}
++              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition ml-1"
++            >
++              <X className="w-4 h-4" />
++            </button>
++          </div>
+         </div>
+ 
+         {/* Progress Bar */}
+diff --git a/src/components/workout/active-workout-client.tsx b/src/components/workout/active-workout-client.tsx
+index 227063a..5abec9d 100644
+--- a/src/components/workout/active-workout-client.tsx
++++ b/src/components/workout/active-workout-client.tsx
+@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
+ import { Timer, CheckCircle, Dumbbell, ArrowLeft, Trophy, Sparkles, Clock, Layers } from "lucide-react";
+ import confetti from "canvas-confetti";
+ import { SupersetCard } from "./superset-card";
++import { SwapExerciseModal } from "./swap-exercise-modal";
+ import { RestTimer } from "@/components/rest-timer";
+ import { DumbbellPlateGuideButton } from "@/components/dumbbell-plate-guide";
+ import { formatDuration } from "@/lib/utils";
+-import { addSetLog, deleteSetLog, finishWorkoutSession, getHistoricalPRs } from "@/actions/workout";
++import { addSetLog, deleteSetLog, finishWorkoutSession, getHistoricalPRs, swapExerciseSession } from "@/actions/workout";
+ 
+ interface ActiveWorkoutClientProps {
+   initialSession: {
+@@ -59,12 +60,22 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
+   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+   const [showRestTimer, setShowRestTimer] = useState(false);
+   const [isFinishing, setIsFinishing] = useState(false);
++  const [swapModalTarget, setSwapModalTarget] = useState<{
++    exerciseId: string;
++    exerciseName: string;
++    targetMuscle: string | null;
++  } | null>(null);
+   const [summaryData, setSummaryData] = useState<{
+     durationMs: number;
+     totalVolume: number;
+     completedSets: number;
+   } | null>(null);
+ 
++  // Sync setLogs if initialSession updates (e.g. after swap & router.refresh)
++  useEffect(() => {
++    setSetLogs(initialSession.setLogs);
++  }, [initialSession.setLogs]);
++
+   const [historicalPRs, setHistoricalPRs] = useState<Record<string, { maxWeight: number; maxReps: number }>>({});
+ 
+   // Fetch PRs on load
+@@ -172,6 +183,23 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
+     setShowRestTimer(true);
+   };
+ 
++  const handleOpenSwapModal = useCallback(
++    (exerciseId: string, exerciseName: string, targetMuscle: string | null) => {
++      setSwapModalTarget({ exerciseId, exerciseName, targetMuscle });
++    },
++    []
++  );
++
++  const handleConfirmSwap = async (newExerciseId: string) => {
++    if (!swapModalTarget) return;
++    await swapExerciseSession(
++      initialSession.id,
++      swapModalTarget.exerciseId,
++      newExerciseId
++    );
++    router.refresh();
++  };
++
+   const handleAddSet = (exerciseId: string) => {
+     startTransition(async () => {
+       const newSet = await addSetLog(initialSession.id, exerciseId);
+@@ -298,6 +326,7 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
+             onDeleteSet={handleDeleteSet}
+             prSetIds={prSetIds}
+             onSetChange={handleUpdateSetLocal}
++            onSwapExercise={handleOpenSwapModal}
+           />
+         ))}
+ 
+@@ -390,6 +419,18 @@ export function ActiveWorkoutClient({ initialSession }: ActiveWorkoutClientProps
+           </div>
+         </div>
+       )}
++
++      {/* Swap Exercise Modal */}
++      {swapModalTarget && (
++        <SwapExerciseModal
++          isOpen={Boolean(swapModalTarget)}
++          onClose={() => setSwapModalTarget(null)}
++          currentExerciseId={swapModalTarget.exerciseId}
++          currentExerciseName={swapModalTarget.exerciseName}
++          currentTargetMuscle={swapModalTarget.targetMuscle}
++          onConfirmSwap={handleConfirmSwap}
++        />
++      )}
+     </div>
+   );
+ }
+diff --git a/src/components/workout/exercise-block.tsx b/src/components/workout/exercise-block.tsx
+index e7422af..eec82f2 100644
+--- a/src/components/workout/exercise-block.tsx
++++ b/src/components/workout/exercise-block.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ 
+ import React, { useState } from "react";
+-import { Plus, ChevronDown, ChevronUp, Sparkles, Target, Dumbbell } from "lucide-react";
++import { Plus, ChevronDown, ChevronUp, Sparkles, Target, Dumbbell, ArrowRightLeft } from "lucide-react";
+ import { SetRow } from "./set-row";
+ 
+ interface ExerciseBlockProps {
+@@ -38,6 +38,7 @@ interface ExerciseBlockProps {
+     setLogId: string,
+     updates: { reps?: number; weight?: number; completed?: boolean }
+   ) => void;
++  onSwapExercise?: (exerciseId: string, exerciseName: string, targetMuscle: string | null) => void;
+ }
+ 
+ export function ExerciseBlock({
+@@ -48,6 +49,7 @@ export function ExerciseBlock({
+   onDeleteSet,
+   prSetIds,
+   onSetChange,
++  onSwapExercise,
+ }: ExerciseBlockProps) {
+   const [showTips, setShowTips] = useState(false);
+   const { exercise } = workoutExercise;
+@@ -94,18 +96,39 @@ export function ExerciseBlock({
+           </div>
+         </div>
+ 
+-        {/* Tips toggle */}
+-        {(exercise.notes || workoutExercise.notes) && (
+-          <button
+-            type="button"
+-            onClick={() => setShowTips(!showTips)}
+-            className="p-1.5 text-xs text-lime-400 hover:bg-lime-400/10 rounded-lg border border-lime-400/20 flex items-center gap-1 transition shrink-0"
+-          >
+-            <Sparkles className="w-3.5 h-3.5" />
+-            <span className="hidden sm:inline">วิธีเล่น & โฟกัส</span>
+-            {showTips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+-          </button>
+-        )}
++        <div className="flex items-center gap-1.5 shrink-0">
++          {/* Swap exercise button (only enabled/visible when no sets completed) */}
++          {completedCount === 0 && onSwapExercise && (
++            <button
++              type="button"
++              onClick={() =>
++                onSwapExercise(
++                  exercise.id,
++                  exercise.thaiName || exercise.name,
++                  exercise.targetMuscle
++                )
++              }
++              className="p-1.5 text-xs text-zinc-400 hover:text-lime-400 hover:bg-lime-400/10 rounded-lg border border-zinc-700/60 hover:border-lime-400/30 flex items-center gap-1 transition"
++              title="สลับท่าออกกำลังกาย"
++            >
++              <ArrowRightLeft className="w-3.5 h-3.5 text-lime-400" />
++              <span className="hidden sm:inline">สลับท่า</span>
++            </button>
++          )}
++
++          {/* Tips toggle */}
++          {(exercise.notes || workoutExercise.notes) && (
++            <button
++              type="button"
++              onClick={() => setShowTips(!showTips)}
++              className="p-1.5 text-xs text-lime-400 hover:bg-lime-400/10 rounded-lg border border-lime-400/20 flex items-center gap-1 transition"
++            >
++              <Sparkles className="w-3.5 h-3.5" />
++              <span className="hidden sm:inline">วิธีเล่น & โฟกัส</span>
++              {showTips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
++            </button>
++          )}
++        </div>
+       </div>
+ 
+       {/* Form Cues & Notes */}
+diff --git a/src/components/workout/superset-card.tsx b/src/components/workout/superset-card.tsx
+index 41244b8..e9fa5c0 100644
+--- a/src/components/workout/superset-card.tsx
++++ b/src/components/workout/superset-card.tsx
+@@ -40,6 +40,7 @@ interface SupersetCardProps {
+     setLogId: string,
+     updates: { reps?: number; weight?: number; completed?: boolean }
+   ) => void;
++  onSwapExercise?: (exerciseId: string, exerciseName: string, targetMuscle: string | null) => void;
+ }
+ 
+ export function SupersetCard({
+@@ -51,6 +52,7 @@ export function SupersetCard({
+   onDeleteSet,
+   prSetIds,
+   onSetChange,
++  onSwapExercise,
+ }: SupersetCardProps) {
+   const isSuperset = workoutExercises.length > 1;
+ 
+@@ -100,6 +102,7 @@ export function SupersetCard({
+                 onDeleteSet={onDeleteSet}
+                 prSetIds={prSetIds}
+                 onSetChange={onSetChange}
++                onSwapExercise={onSwapExercise}
+               />
+ 
+               {/* Superset connector arrow */}
+diff --git a/src/components/workout/swap-exercise-modal.tsx b/src/components/workout/swap-exercise-modal.tsx
+new file mode 100644
+index 0000000..326300f
+--- /dev/null
++++ b/src/components/workout/swap-exercise-modal.tsx
+@@ -0,0 +1,277 @@
++"use client";
++
++import React, { useState, useEffect, useMemo } from "react";
++import { X, Search, Dumbbell, Target, Check, ArrowRightLeft, Loader2 } from "lucide-react";
++import { getAllExercises } from "@/actions/workout";
++
++interface ExerciseItem {
++  id: string;
++  name: string;
++  thaiName: string | null;
++  targetMuscle: string | null;
++  equipmentType: string | null;
++  weightInstruction: string | null;
++  notes: string | null;
++}
++
++interface SwapExerciseModalProps {
++  isOpen: boolean;
++  onClose: () => void;
++  currentExerciseId: string;
++  currentExerciseName: string;
++  currentTargetMuscle: string | null;
++  onConfirmSwap: (newExerciseId: string) => Promise<void>;
++}
++
++export function SwapExerciseModal({
++  isOpen,
++  onClose,
++  currentExerciseId,
++  currentExerciseName,
++  currentTargetMuscle,
++  onConfirmSwap,
++}: SwapExerciseModalProps) {
++  const [exercises, setExercises] = useState<ExerciseItem[]>([]);
++  const [loading, setLoading] = useState(false);
++  const [submittingId, setSubmittingId] = useState<string | null>(null);
++  const [searchQuery, setSearchQuery] = useState("");
++  const [filterSameMuscleOnly, setFilterSameMuscleOnly] = useState(true);
++
++  // Fetch exercises when modal opens
++  useEffect(() => {
++    if (!isOpen) return;
++    let isMounted = true;
++    setLoading(true);
++    setSearchQuery("");
++    setFilterSameMuscleOnly(Boolean(currentTargetMuscle));
++
++    getAllExercises()
++      .then((data) => {
++        if (isMounted) {
++          setExercises(data);
++          setLoading(false);
++        }
++      })
++      .catch((err) => {
++        console.error("Failed to load exercises:", err);
++        if (isMounted) setLoading(false);
++      });
++
++    return () => {
++      isMounted = false;
++    };
++  }, [isOpen, currentTargetMuscle]);
++
++  const filteredExercises = useMemo(() => {
++    return exercises.filter((ex) => {
++      // Exclude current exercise
++      if (ex.id === currentExerciseId) return false;
++
++      // Filter by muscle if toggled
++      if (filterSameMuscleOnly && currentTargetMuscle) {
++        if (ex.targetMuscle?.toLowerCase() !== currentTargetMuscle.toLowerCase()) {
++          return false;
++        }
++      }
++
++      // Filter by search query
++      if (searchQuery.trim()) {
++        const q = searchQuery.toLowerCase();
++        const matchName = ex.name.toLowerCase().includes(q);
++        const matchThai = ex.thaiName ? ex.thaiName.toLowerCase().includes(q) : false;
++        const matchMuscle = ex.targetMuscle ? ex.targetMuscle.toLowerCase().includes(q) : false;
++        return matchName || matchThai || matchMuscle;
++      }
++
++      return true;
++    });
++  }, [exercises, currentExerciseId, filterSameMuscleOnly, currentTargetMuscle, searchQuery]);
++
++  const handleSelect = async (exerciseId: string) => {
++    if (submittingId) return;
++    setSubmittingId(exerciseId);
++    try {
++      await onConfirmSwap(exerciseId);
++      onClose();
++    } catch (error) {
++      console.error("Failed to swap exercise:", error);
++      alert(error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการเปลี่ยนท่า");
++    } finally {
++      setSubmittingId(null);
++    }
++  };
++
++  if (!isOpen) return null;
++
++  return (
++    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
++      <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
++        {/* Header */}
++        <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/40">
++          <div className="flex items-center gap-2.5">
++            <div className="w-9 h-9 rounded-xl bg-lime-400/10 border border-lime-500/20 flex items-center justify-center text-lime-400">
++              <ArrowRightLeft className="w-4 h-4" />
++            </div>
++            <div>
++              <h3 className="text-base font-bold text-white leading-tight">
++                เปลี่ยนท่าออกกำลังกาย (Swap)
++              </h3>
++              <p className="text-xs text-zinc-400 mt-0.5">
++                แทนที่ <span className="text-lime-400 font-medium">"{currentExerciseName}"</span> ในเซสชันนี้
++              </p>
++            </div>
++          </div>
++          <button
++            type="button"
++            onClick={onClose}
++            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition"
++          >
++            <X className="w-5 h-5" />
++          </button>
++        </div>
++
++        {/* Search & Filter Controls */}
++        <div className="p-4 border-b border-zinc-800/80 space-y-3 bg-zinc-900/50">
++          {/* Search bar */}
++          <div className="relative">
++            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
++            <input
++              type="text"
++              value={searchQuery}
++              onChange={(e) => setSearchQuery(e.target.value)}
++              placeholder="ค้นหาชื่อท่า, ชื่อไทย หรือกล้ามเนื้อ..."
++              className="w-full pl-9 pr-4 py-2 bg-zinc-950/80 border border-zinc-700/60 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-lime-400 transition"
++            />
++            {searchQuery && (
++              <button
++                type="button"
++                onClick={() => setSearchQuery("")}
++                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
++              >
++                <X className="w-3.5 h-3.5" />
++              </button>
++            )}
++          </div>
++
++          {/* Muscle filter pills */}
++          {currentTargetMuscle && (
++            <div className="flex items-center gap-2">
++              <button
++                type="button"
++                onClick={() => setFilterSameMuscleOnly(true)}
++                className={`text-xs px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
++                  filterSameMuscleOnly
++                    ? "bg-lime-500/20 text-lime-300 border-lime-500/40 font-semibold"
++                    : "bg-zinc-800/50 text-zinc-400 border-zinc-700/50 hover:bg-zinc-800 hover:text-zinc-200"
++                }`}
++              >
++                <Target className="w-3 h-3" />
++                เฉพาะกลุ่ม {currentTargetMuscle}
++              </button>
++              <button
++                type="button"
++                onClick={() => setFilterSameMuscleOnly(false)}
++                className={`text-xs px-3 py-1.5 rounded-lg border transition ${
++                  !filterSameMuscleOnly
++                    ? "bg-lime-500/20 text-lime-300 border-lime-500/40 font-semibold"
++                    : "bg-zinc-800/50 text-zinc-400 border-zinc-700/50 hover:bg-zinc-800 hover:text-zinc-200"
++                }`}
++              >
++                แสดงทั้งหมด ({exercises.length - (exercises.some((e) => e.id === currentExerciseId) ? 1 : 0)})
++              </button>
++            </div>
++          )}
++        </div>
++
++        {/* Exercises List */}
++        <div className="flex-1 overflow-y-auto p-3 space-y-2 divide-y divide-zinc-800/40">
++          {loading ? (
++            <div className="py-12 flex flex-col items-center justify-center text-zinc-400 gap-2">
++              <Loader2 className="w-6 h-6 animate-spin text-lime-400" />
++              <span className="text-xs">กำลังโหลดรายชื่อท่า...</span>
++            </div>
++          ) : filteredExercises.length === 0 ? (
++            <div className="py-12 text-center text-zinc-500 text-xs">
++              ไม่พบท่าออกกำลังกายที่ตรงกับเงื่อนไข
++              {filterSameMuscleOnly && (
++                <div className="mt-2">
++                  <button
++                    type="button"
++                    onClick={() => setFilterSameMuscleOnly(false)}
++                    className="text-lime-400 hover:underline font-medium"
++                  >
++                    ลองดูท่าออกกำลังกายทั้งหมด
++                  </button>
++                </div>
++              )}
++            </div>
++          ) : (
++            filteredExercises.map((ex) => {
++              const isSubmitting = submittingId === ex.id;
++
++              return (
++                <div
++                  key={ex.id}
++                  className="pt-2 first:pt-0"
++                >
++                  <button
++                    type="button"
++                    disabled={Boolean(submittingId)}
++                    onClick={() => handleSelect(ex.id)}
++                    className="w-full text-left p-3 rounded-2xl hover:bg-zinc-800/70 active:bg-zinc-800 border border-transparent hover:border-zinc-700/60 transition group flex items-center justify-between gap-3 disabled:opacity-50"
++                  >
++                    <div className="space-y-1 min-w-0">
++                      <div className="flex items-center gap-2">
++                        <span className="font-bold text-sm text-white group-hover:text-lime-400 transition truncate">
++                          {ex.thaiName || ex.name}
++                        </span>
++                        {ex.thaiName && (
++                          <span className="text-xs text-zinc-400 truncate">
++                            ({ex.name})
++                          </span>
++                        )}
++                      </div>
++
++                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
++                        {ex.targetMuscle && (
++                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700/50">
++                            <Target className="w-2.5 h-2.5 text-lime-400" />
++                            {ex.targetMuscle}
++                          </span>
++                        )}
++                        {ex.equipmentType && (
++                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800/60 text-zinc-400">
++                            <Dumbbell className="w-2.5 h-2.5" />
++                            {ex.equipmentType}
++                          </span>
++                        )}
++                        {ex.weightInstruction && (
++                          <span className="text-zinc-500">
++                            • {ex.weightInstruction}
++                          </span>
++                        )}
++                      </div>
++                    </div>
++
++                    <div className="shrink-0 flex items-center justify-center w-8 h-8 rounded-xl bg-zinc-800 group-hover:bg-lime-400 group-hover:text-black text-zinc-400 transition">
++                      {isSubmitting ? (
++                        <Loader2 className="w-4 h-4 animate-spin text-lime-400" />
++                      ) : (
++                        <Check className="w-4 h-4 opacity-0 group-hover:opacity-100 transition" />
++                      )}
++                    </div>
++                  </button>
++                </div>
++              );
++            })
++          )}
++        </div>
++
++        {/* Footer info */}
++        <div className="p-3 bg-zinc-950/60 border-t border-zinc-800 text-center text-[11px] text-zinc-500">
++          💡 การสลับท่าจะมีผลเฉพาะเซสชันนี้เท่านั้น จะไม่กระทบกับ Routine ดั้งเดิม
++        </div>
++      </div>
++    </div>
++  );
++}
