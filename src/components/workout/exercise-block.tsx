@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, ChevronDown, ChevronUp, Sparkles, Target, Dumbbell } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Sparkles, Target, Dumbbell, ArrowRightLeft } from "lucide-react";
 import { SetRow } from "./set-row";
 
 interface ExerciseBlockProps {
@@ -38,6 +38,7 @@ interface ExerciseBlockProps {
     setLogId: string,
     updates: { reps?: number; weight?: number; completed?: boolean }
   ) => void;
+  onSwapExercise?: (exerciseId: string, exerciseName: string, targetMuscle: string | null) => void;
 }
 
 export function ExerciseBlock({
@@ -48,6 +49,7 @@ export function ExerciseBlock({
   onDeleteSet,
   prSetIds,
   onSetChange,
+  onSwapExercise,
 }: ExerciseBlockProps) {
   const [showTips, setShowTips] = useState(false);
   const { exercise } = workoutExercise;
@@ -94,18 +96,39 @@ export function ExerciseBlock({
           </div>
         </div>
 
-        {/* Tips toggle */}
-        {(exercise.notes || workoutExercise.notes) && (
-          <button
-            type="button"
-            onClick={() => setShowTips(!showTips)}
-            className="p-1.5 text-xs text-lime-400 hover:bg-lime-400/10 rounded-lg border border-lime-400/20 flex items-center gap-1 transition shrink-0"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">วิธีเล่น & โฟกัส</span>
-            {showTips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Swap exercise button (only enabled/visible when no sets completed) */}
+          {completedCount === 0 && onSwapExercise && (
+            <button
+              type="button"
+              onClick={() =>
+                onSwapExercise(
+                  exercise.id,
+                  exercise.thaiName || exercise.name,
+                  exercise.targetMuscle
+                )
+              }
+              className="p-1.5 text-xs text-zinc-400 hover:text-lime-400 hover:bg-lime-400/10 rounded-lg border border-zinc-700/60 hover:border-lime-400/30 flex items-center gap-1 transition"
+              title="สลับท่าออกกำลังกาย"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-lime-400" />
+              <span className="hidden sm:inline">สลับท่า</span>
+            </button>
+          )}
+
+          {/* Tips toggle */}
+          {(exercise.notes || workoutExercise.notes) && (
+            <button
+              type="button"
+              onClick={() => setShowTips(!showTips)}
+              className="p-1.5 text-xs text-lime-400 hover:bg-lime-400/10 rounded-lg border border-lime-400/20 flex items-center gap-1 transition"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">วิธีเล่น & โฟกัส</span>
+              {showTips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Form Cues & Notes */}

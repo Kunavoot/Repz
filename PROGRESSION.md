@@ -14,10 +14,10 @@
   - [x] Post-workout modal or summary view upon pressing "Finish Workout"
   - [x] Metrics breakdown: Total Volume (kg), Completed Sets, Total Duration, PRs broken today
   - [x] Option to share or view summary recap
-- [ ] Rest Timer Audio & Vibration Notifications
-  - [ ] Synthesized audio chime via Web Audio API (cross-browser without external audio asset dependencies)
-  - [ ] Web Vibration API (`navigator.vibrate`) trigger on timer completion for mobile devices
-  - [ ] Toggle switch in settings / timer widget to enable/disable sound and vibration
+- [x] Rest Timer Audio & Vibration Notifications
+  - [x] Synthesized audio chime via Web Audio API (cross-browser without external audio asset dependencies)
+  - [x] Web Vibration API (`navigator.vibrate`) trigger on timer completion for mobile devices
+  - [x] Toggle switch in settings / timer widget to enable/disable sound and vibration
 - [ ] PWA (Progressive Web App) Support
   - [ ] Web App Manifest (`manifest.json`) with app icons and theme colors (`#39FF14` neon green & dark theme)
   - [ ] Service Worker setup for offline fallback and cache optimization
@@ -26,10 +26,10 @@
   - [ ] Exercise management UI (add custom exercises, select muscle groups, equipment type)
   - [ ] Routine builder UI (create custom routines, reorder workouts, customize target sets/reps)
   - [ ] Superset pairing editor in routine setup
-- [ ] Exercise Swap during Active Workout
-  - [ ] "Swap Exercise" action button in `ExerciseBlock`
-  - [ ] Modal to pick alternate exercise targeting the same muscle group
-  - [ ] Preserve or cleanly replace set logs for that session without corrupting the base routine
+- [x] Exercise Swap during Active Workout
+  - [x] "Swap Exercise" action button in `ExerciseBlock`
+  - [x] Modal to pick alternate exercise targeting the same muscle group
+  - [x] Preserve or cleanly replace set logs for that session without corrupting the base routine
 
 ## Completed
 - [x] Login and User Profile System (NextAuth.js v5 Credentials Provider, bcryptjs, Neon PostgreSQL)
@@ -40,6 +40,7 @@
 - [x] History & Progress Chart Pages (Session logs list, Recharts progress by exercise)
 - [x] PR (Personal Record) Tracking & In-Session Notification
 - [x] Workout Finish Summary Screen & Celebration
+- [x] Exercise Swap during Active Workout (Session-scoped swap modal with muscle group filter)
 
 ## Blockers & Notes
 - None.

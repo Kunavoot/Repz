@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, RotateCcw, X, BellRing, Plus } from "lucide-react";
+import { Play, Pause, RotateCcw, X, BellRing, Plus, Volume2, VolumeX, Vibrate, VibrateOff } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 
 // Web Audio API beep
@@ -44,6 +44,41 @@ export function RestTimer({
   const [timeLeft, setTimeLeft] = useState(initialSeconds);
   const [totalTime, setTotalTime] = useState(initialSeconds);
   const [isRunning, setIsRunning] = useState(true);
+  
+  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
+  const [isVibrationEnabled, setIsVibrationEnabled] = useState(true);
+  const soundEnabledRef = useRef(true);
+  const vibeEnabledRef = useRef(true);
+
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const savedSound = localStorage.getItem("repz_sound_enabled");
+    if (savedSound !== null) {
+      setIsSoundEnabled(savedSound === "true");
+      soundEnabledRef.current = savedSound === "true";
+    }
+    
+    const savedVibe = localStorage.getItem("repz_vibration_enabled");
+    if (savedVibe !== null) {
+      setIsVibrationEnabled(savedVibe === "true");
+      vibeEnabledRef.current = savedVibe === "true";
+    }
+  }, []);
+
+  const toggleSound = () => {
+    const newValue = !isSoundEnabled;
+    setIsSoundEnabled(newValue);
+    soundEnabledRef.current = newValue;
+    localStorage.setItem("repz_sound_enabled", String(newValue));
+  };
+
+  const toggleVibration = () => {
+    const newValue = !isVibrationEnabled;
+    setIsVibrationEnabled(newValue);
+    vibeEnabledRef.current = newValue;
+    localStorage.setItem("repz_vibration_enabled", String(newValue));
+  };
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const resetTimer = useCallback((seconds: number) => {
@@ -68,8 +103,8 @@ export function RestTimer({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           if (timerRef.current) clearInterval(timerRef.current);
-          playChime();
-          if (navigator.vibrate) {
+          if (soundEnabledRef.current) playChime();
+          if (vibeEnabledRef.current && navigator.vibrate) {
             navigator.vibrate([200, 100, 200]);
           }
           return 0;
@@ -102,12 +137,28 @@ export function RestTimer({
               {isFinished ? "🔥 พร้อมเริ่มเซ็ตถัดไปแล้ว!" : title}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleSound}
+              className={`p-1.5 rounded-lg transition ${isSoundEnabled ? "text-lime-400 hover:bg-zinc-800" : "text-zinc-500 hover:text-zinc-400 hover:bg-zinc-800"}`}
+              title={isSoundEnabled ? "ปิดเสียง" : "เปิดเสียง"}
+            >
+              {isSoundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={toggleVibration}
+              className={`p-1.5 rounded-lg transition ${isVibrationEnabled ? "text-lime-400 hover:bg-zinc-800" : "text-zinc-500 hover:text-zinc-400 hover:bg-zinc-800"}`}
+              title={isVibrationEnabled ? "ปิดสั่น" : "เปิดสั่น"}
+            >
+              {isVibrationEnabled ? <Vibrate className="w-4 h-4" /> : <VibrateOff className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition ml-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Progress Bar */}
