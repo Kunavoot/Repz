@@ -32,6 +32,12 @@ _Avoid_: Set record, tracking entry
 A logical sequence of workouts (e.g. Push, Pull, Legs) that is not strictly bound to specific calendar days.
 _Avoid_: Day-of-week schedule
 
+**System Preset**:
+A global Exercise or Routine provided by the system as an example or starting point (`userId` is null). Users can view and use these, but if they want to modify them, the system creates a personalized copy.
+
+**Custom Data**:
+An Exercise or Routine explicitly created by or cloned for a specific user. It is entirely isolated and visible only to that user.
+
 **User / User Account**:
 A registered person in the application who has their own isolated workout data. Authentication is handled via Email + Password (hashed and salted).
 _Avoid_: Member, client

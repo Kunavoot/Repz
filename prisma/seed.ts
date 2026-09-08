@@ -129,11 +129,19 @@ async function main() {
 
   const exerciseMap = new Map<string, string>();
   for (const ex of exercisesData) {
-    const record = await prisma.exercise.upsert({
-      where: { name: ex.name },
-      update: ex,
-      create: ex,
+    let record = await prisma.exercise.findFirst({
+      where: { name: ex.name, userId: null },
     });
+    if (record) {
+      record = await prisma.exercise.update({
+        where: { id: record.id },
+        data: ex,
+      });
+    } else {
+      record = await prisma.exercise.create({
+        data: { ...ex, userId: null },
+      });
+    }
     exerciseMap.set(ex.name, record.id);
   }
   console.log(`✅ Seeded ${exercisesData.length} exercises`);

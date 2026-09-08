@@ -22,10 +22,10 @@
   - [ ] Web App Manifest (`manifest.json`) with app icons and theme colors (`#39FF14` neon green & dark theme)
   - [ ] Service Worker setup for offline fallback and cache optimization
   - [ ] Standalone display mode for seamless "Add to Home Screen" on iOS Safari and Android Chrome
-- [ ] Custom Routine & Exercise Management
-  - [ ] Exercise management UI (add custom exercises, select muscle groups, equipment type)
-  - [ ] Routine builder UI (create custom routines, reorder workouts, customize target sets/reps)
-  - [ ] Superset pairing editor in routine setup
+- [x] Custom Routine & Exercise Management
+  - [x] Exercise management UI (add custom exercises, select muscle groups, equipment type)
+  - [x] Routine builder UI (create custom routines, reorder workouts, customize target sets/reps)
+  - [x] Superset pairing editor in routine setup
 - [x] Exercise Swap during Active Workout
   - [x] "Swap Exercise" action button in `ExerciseBlock`
   - [x] Modal to pick alternate exercise targeting the same muscle group
@@ -41,6 +41,7 @@
 - [x] PR (Personal Record) Tracking & In-Session Notification
 - [x] Workout Finish Summary Screen & Celebration
 - [x] Exercise Swap during Active Workout (Session-scoped swap modal with muscle group filter)
+- [x] Custom Routine & Exercise Management (Custom exercises, routine builder, accordion split, superset pairing editor, clone & active routine switcher)
 
 ## Blockers & Notes
 - None.

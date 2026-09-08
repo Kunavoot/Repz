@@ -1,14 +1,21 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Play, Flame, Dumbbell, Calendar, ChevronRight, Zap, CheckCircle2, Trophy, Clock } from "lucide-react";
+import { Play, Flame, Dumbbell, Calendar, ChevronRight, Zap, CheckCircle2, Trophy, Clock, Layers } from "lucide-react";
 import { startWorkoutSession } from "@/actions/workout";
 import { DumbbellPlateGuideModal } from "@/components/dumbbell-plate-guide";
 import { formatDateThai } from "@/lib/utils";
 
 interface DashboardClientProps {
   data: {
+    routine?: {
+      id: string;
+      name: string;
+      description: string | null;
+      isPreset: boolean;
+    } | null;
     workouts: Array<{
       id: string;
       name: string;
@@ -84,7 +91,7 @@ export function DashboardClient({ data }: DashboardClientProps) {
   const [isStarting, startTransition] = useTransition();
   const [showDumbbellGuide, setShowDumbbellGuide] = useState(false);
 
-  const { workouts, nextWorkout, activeSession, lastSession, recentSessions, workoutsThisWeek } = data;
+  const { routine, workouts, nextWorkout, activeSession, lastSession, recentSessions, workoutsThisWeek } = data;
 
   const handleStart = (workoutId: string) => {
     startTransition(async () => {
@@ -196,10 +203,20 @@ export function DashboardClient({ data }: DashboardClientProps) {
 
       {/* Routine Split Selector (Choose another day) */}
       <div className="space-y-3">
-        <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-lime-400" />
-          เลือกตารางฝึกประจำสัปดาห์ (3-Day Split)
-        </h3>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-lime-400" />
+            <span>{routine?.name || "ตารางฝึกประจำสัปดาห์"}</span>
+          </h3>
+          <Link
+            href="/routines"
+            className="flex items-center gap-1 text-xs font-semibold text-lime-400 hover:text-lime-300 transition"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>เปลี่ยน / จัดการตารางฝึก</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {workouts.map((w) => (

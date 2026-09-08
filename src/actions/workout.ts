@@ -263,16 +263,53 @@ export async function getActiveWorkoutSession(sessionId: string) {
 export async function getDashboardData() {
   const userId = await getCurrentUserId();
 
-  // Find all workouts
-  const workouts = await prisma.routineWorkout.findMany({
-    orderBy: { order: "asc" },
-    include: {
-      exercises: {
-        include: { exercise: true },
-        orderBy: { order: "asc" },
-      },
-    },
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { activeRoutineId: true },
   });
+
+  let activeRoutine = null;
+  if (user?.activeRoutineId) {
+    activeRoutine = await prisma.routine.findFirst({
+      where: {
+        id: user.activeRoutineId,
+        OR: [{ userId: null }, { userId }],
+      },
+      include: {
+        workouts: {
+          orderBy: { order: "asc" },
+          include: {
+            exercises: {
+              include: { exercise: true },
+              orderBy: { order: "asc" },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  if (!activeRoutine) {
+    activeRoutine = await prisma.routine.findFirst({
+      where: {
+        OR: [{ userId: null }, { userId }],
+      },
+      orderBy: { createdAt: "asc" },
+      include: {
+        workouts: {
+          orderBy: { order: "asc" },
+          include: {
+            exercises: {
+              include: { exercise: true },
+              orderBy: { order: "asc" },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  const workouts = activeRoutine?.workouts ?? [];
 
   // Find last completed session
   const lastSession = await prisma.workoutSession.findFirst({
@@ -334,6 +371,14 @@ export async function getDashboardData() {
   });
 
   return {
+    routine: activeRoutine
+      ? {
+          id: activeRoutine.id,
+          name: activeRoutine.name,
+          description: activeRoutine.description,
+          isPreset: activeRoutine.userId === null,
+        }
+      : null,
     workouts,
     nextWorkout,
     lastSession,
@@ -364,8 +409,11 @@ export async function getHistoryData() {
 export async function getProgressData(selectedExerciseId?: string) {
   const userId = await getCurrentUserId();
 
-  // All exercises
+  // All exercises (Presets + User Custom)
   const exercises = await prisma.exercise.findMany({
+    where: {
+      OR: [{ userId: null }, { userId }],
+    },
     orderBy: { name: "asc" },
   });
 
@@ -592,8 +640,11 @@ export async function swapExerciseSession(
 }
 
 export async function getAllExercises() {
-  await getCurrentUserId();
+  const userId = await getCurrentUserId();
   const exercises = await prisma.exercise.findMany({
+    where: {
+      OR: [{ userId: null }, { userId }],
+    },
     orderBy: [{ targetMuscle: "asc" }, { name: "asc" }],
   });
   return exercises;

@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   History,
   TrendingUp,
+  Layers,
   LogOut,
   LogIn,
   User as UserIcon,
@@ -28,6 +29,7 @@ export function Navbar() {
 
   const navItems = [
     { href: "/dashboard", label: "หน้าหลัก", icon: LayoutDashboard },
+    { href: "/routines", label: "ตารางฝึก", icon: Layers },
     { href: "/history", label: "ประวัติ", icon: History },
     { href: "/progress", label: "พัฒนาการ", icon: TrendingUp },
   ];
@@ -56,7 +58,10 @@ export function Navbar() {
           <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive =
+                item.href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname?.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
@@ -134,6 +139,7 @@ export function MobileBottomNav() {
 
   const navItems = [
     { href: "/dashboard", label: "หน้าหลัก", icon: LayoutDashboard },
+    { href: "/routines", label: "ตารางฝึก", icon: Layers },
     { href: "/history", label: "ประวัติ", icon: History },
     { href: "/progress", label: "พัฒนาการ", icon: TrendingUp },
   ];
@@ -143,7 +149,10 @@ export function MobileBottomNav() {
       <div className="flex items-center justify-around max-w-md mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === "/dashboard"
+              ? pathname === "/dashboard"
+              : pathname?.startsWith(item.href);
           return (
             <Link
               key={item.href}
